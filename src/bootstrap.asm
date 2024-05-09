@@ -51,6 +51,14 @@ gdt_load:
 gdt_load_done:
 	ret
 
+;; IDT
+global idt_load
+extern idtp
+
+idt_load:
+	lidt [idtp]
+	ret
+
 ;; TODO: ISRs
 
 section .bss

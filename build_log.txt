@@ -1,0 +1,6 @@
+PulsarOS Build Log
+
+Build 1 - Blank Kernel
+Build 2 - VGA Driver
+Build 3 - Change Kernel Startup Text
+Build 4 - GDT Driver

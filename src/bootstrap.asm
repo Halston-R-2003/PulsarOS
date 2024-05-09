@@ -35,7 +35,21 @@ _stublet:
 	call kernel_main
 	jmp $
 
-;; TODO: GDT
+;; GDT
+global gdt_load
+extern gdtp
+
+gdt_load:
+	lgdt [gdtp]
+	mov ax, 0x10
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	mov ss, ax
+	jmp 0x08:gdt_load_done
+gdt_load_done:
+	ret
 
 ;; TODO: ISRs
 
@@ -43,4 +57,3 @@ section .bss
 	resb 8192	; 8MB Memory Reserved
 _system_stack:
 ;; THIS LINE INTENTIONALLY LEFT BLANK
-

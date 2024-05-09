@@ -1,6 +1,7 @@
 #include <sys.h>
 #include <vga.h>
 #include <gdt.h>
+#include <idt.h>
 
 int32_t kernel_main(void)
 {
@@ -11,9 +12,12 @@ int32_t kernel_main(void)
 	gdt_init();
 	vga_puts("GDT Initialized!\n");
 
+	idt_init();
+	vga_puts("IDT Initialized!\n");
+
 	vga_clear();
 	vga_set_text_color(0xB, 0x1);
-	vga_puts("PulsarOS v0.0.0.0004\n");
+	vga_puts("PulsarOS v0.0.0.0005\n");
 
 	for (int32_t i = 0; i < 16; ++i)
 	{

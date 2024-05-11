@@ -6,22 +6,15 @@
 
 int32_t kernel_main(void)
 {
+	// Initialization
 	vga_init();
-	vga_set_text_color(0xA, 0x0);
-	vga_puts("VGA Initialized!\n");
-
 	gdt_init();
-	vga_puts("GDT Initialized!\n");
-
 	idt_init();
-	vga_puts("IDT Initialized!\n");
-
 	isrs_init();
-	vga_puts("ISRs Initialized!\n");
 
-	vga_clear();
+	// Display OS Name & Version as well as Test VGA Colors
 	vga_set_text_color(0xB, 0x1);
-	vga_puts("PulsarOS v0.0.0.0006\n");
+	vga_puts("PulsarOS v0.0.0.0007\n");
 
 	for (int32_t i = 0; i < 16; ++i)
 	{

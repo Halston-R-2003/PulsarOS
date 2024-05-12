@@ -4,6 +4,7 @@
 #include <idt.h>
 #include <isrs.h>
 #include <irq.h>
+#include <timer.h>
 
 int32_t kernel_main(void)
 {
@@ -13,10 +14,12 @@ int32_t kernel_main(void)
 	idt_init();
 	isrs_init();
 	irq_init();
+	__asm__ __volatile__ ("sti");
+	timer_init();
 
 	// Display OS Name & Version as well as Test VGA Colors
 	vga_set_text_color(0xB, 0x1);
-	vga_puts("PulsarOS v0.0.0.0008\n");
+	vga_puts("PulsarOS v0.0.0.0009\n");
 
 	for (int32_t i = 0; i < 16; ++i)
 	{
@@ -24,6 +27,8 @@ int32_t kernel_main(void)
 		vga_puts(' ');
 	}
 	vga_puts("\n");
+
+	vga_set_text_color(0xF, 0x0);
 
 	for (;;);
 	return 0;

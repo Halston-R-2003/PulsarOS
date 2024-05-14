@@ -21,7 +21,7 @@ int32_t kernel_main(void)
 
 	// Display OS Name & Version as well as Test VGA Colors
 	vga_set_text_color(0xB, 0x1);
-	vga_puts("PulsarOS v0.0.0.0010\n");
+	vga_puts("PulsarOS v0.0.0.0011\n");
 
 	for (int32_t i = 0; i < 16; ++i)
 	{

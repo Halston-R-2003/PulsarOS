@@ -11,8 +11,8 @@ install: kernel
 run: kernel
 	qemu-system-x86_64 -cdrom PulsarOS.iso
 
-kernel: bootstrap.o link.ld kernel.o sys.o vga.o gdt.o idt.o isrs.o irq.o timer.o keyboard.o
-	i686-elf-gcc -T link.ld -o PulsarOS.bin -ffreestanding -O2 -nostdlib bootstrap.o kernel.o sys.o vga.o gdt.o idt.o isrs.o irq.o timer.o keyboard.o -lgcc
+kernel: bootstrap.o link.ld kernel.o sys.o vga.o gdt.o idt.o isrs.o irq.o timer.o keyboard.o kprintf.o
+	i686-elf-gcc -T link.ld -o PulsarOS.bin -ffreestanding -O2 -nostdlib bootstrap.o kernel.o sys.o vga.o gdt.o idt.o isrs.o irq.o timer.o keyboard.o kprintf.o -lgcc
 
 %.o: src/%.c
 	i686-elf-gcc -c $< -o $@ -std=gnu99 -ffreestanding -O2 -Wall -Wextra -I./include

@@ -1,29 +1,32 @@
-OUTPUT_FORMAT("binary")
 ENTRY(_start)
-phys = 0x00100000;
+
 SECTIONS
 {
-	.text phys : AT(phys)
+	. = 2M;
+
+	.multiboot :
 	{
-		code = .;
+		*(.multiboot)
+	}
+
+	.text BLOCK(4K) : ALIGN(4K)
+	{
 		*(.text)
+	}
+
+	.rodata BLOCK(4K) : ALIGN(4K)
+	{
 		*(.rodata)
-		. = ALIGN(4096);
 	}
 
-	.data : AT(phys + (data - code))
+	.data BLOCK(4K) : ALIGN(4K)
 	{
-		data = .;
 		*(.data)
-		. = ALIGN(4096);
 	}
 
-	.bss : AT(phys + (bss - code))
+	.bss BLOCK(4K) : ALIGN(4K)
 	{
-		bss = .;
+		*(COMMON)
 		*(.bss)
-		. = ALIGN(4096);
 	}
-
-	end = .;
 }

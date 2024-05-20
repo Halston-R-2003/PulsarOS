@@ -1,483 +1,177 @@
-[BITS 32]
+extern kernel_main
+
+section .bss
+align 4096
+
+pml4t:
+	resb 4096
+
+pdpt:
+	resb 4096
+
+pdt:
+	resb 4096
+
+stack_bottom:
+	resb 128
+stack_top:
+
+section .rodata
+
+PRESENT equ 1<<7
+NOT_SYS equ 1<<4
+EXEC equ 1<<3
+DC equ 1<<2
+RW equ 1<<1
+ACCESSED equ 1<<0
+
+GRAN_4K equ 1<<7
+SZ_32 equ 1<<6
+LONG_MODE equ 1<<5
+
+GDT:
+	.Null: equ $-GDT
+		dq 0
+	.Code: equ $-GDT
+		dd 0xFFFF
+		db 0
+		db PRESENT | NOT_SYS | EXEC | RW
+		db GRAN_4K | LONG_MODE | 0xF
+		db 0
+	.Data: equ $-GDT
+		dd 0xFFFF
+		db 0
+		db PRESENT | NOT_SYS | RW
+		db GRAN_4K | SZ_32 | 0xF
+		db 0
+	.TSS: equ $-GDT
+		dd 0x00000068
+		dd 0x00CF8900
+	.Pointer:
+		dw $-GDT-1
+		dq GDT
 
 global _start
+
+section .text
+[BITS 32]
+
+check_multiboot:
+	cmp eax, 0x36D76289
+	jne no_multiboot
+	ret
+no_multiboot:
+	mov al, "0"
+	jmp error
+
+check_cpuid:
+	pushfd
+	pop eax
+	
+	mov ecx, eax
+	xor eax, 1<<21
+
+	push eax
+	popfd
+
+	pushfd
+	pop eax
+
+	push ecx
+	popfd
+
+	xor eax, ecx
+	jz NoCPUID
+	ret
+NoCPUID:
+	mov al, "1"
+	jmp error
+
+check_longmode:
+	mov eax, 0x80000000
+	cpuid
+	cmp eax, 0x80000001
+	jb no_longmode
+
+	mov eax, 0x80000001
+	cpuid
+	test edx, 1<<29
+	jz no_longmode
+	ret
+no_longmode:
+	mov al, "2"
+	jmp error
+
 _start:
-	mov esp, _system_stack
-	jmp _stublet
+	mov esp, stack_top
+	call check_multiboot
 
-align 4
-mboot:
-	;; MULTIBOOT constants
-	MULTIBOOT_PAGE_ALIGN equ 1<<0
-	MULTIBOOT_MEM_INFO equ 1<<1
-	MULTIBOOT_AOUT_KLUDGE equ 1<<16
-	MULTIBOOT_MAGIC_NUM equ 0x1BADB002
-	MULTIBOOT_HEADER_FLAGS equ MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEM_INFO | MULTIBOOT_AOUT_KLUDGE
-	MULTIBOOT_CHECKSUM equ -(MULTIBOOT_MAGIC_NUM + MULTIBOOT_HEADER_FLAGS)
+	call check_cpuid
 
-	extern code, bss, end
+	call check_longmode
 
-	;; GRUB MULTIBOOT Header & Boot Signature
-	dd MULTIBOOT_MAGIC_NUM
-	dd MULTIBOOT_HEADER_FLAGS
-	dd MULTIBOOT_CHECKSUM
+pagetable_setup:
+	mov eax, pdpt
+	or eax, 0b11
+	mov [pml4t], eax
 
-	;; To Be Filled In By LINK.LD script
-	dd mboot
-	dd code
-	dd bss
-	dd end
-	dd _start
+	mov eax, pdt
+	or eax, 0b11
+	mov [pdpt], eax
 
-;; KERNEL ENTRY POINT
-_stublet:
-	extern kernel_main
-	call kernel_main
-	jmp $
+	xor ecx, ecx
 
-;; GDT
-global gdt_load
-extern gdtp
+direct_map_pdte:
+	mov eax, 0x200000
+	mul ecx
+	or eax, 0b10000011
+	mov [pdt+ecx*8], eax
+	inc ecx
+	cmp ecx, 512
+	jne direct_map_pdte
 
-gdt_load:
-	lgdt [gdtp]
-	mov ax, 0x10
+	mov eax, pml4t
+	mov cr3, eax
+
+enable_pae_bit:
+	mov eax, cr4
+	or eax, 1<<5
+	mov cr4, eax
+
+set_efer_msr:
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, 1<<8
+	wrmsr
+
+enable_paging:
+	mov eax, cr0
+	or eax, 1<<31
+	mov cr0, eax
+
+load_gdt:
+	lgdt [GDT.Pointer]
+	jmp GDT.Code:enter_longmode_success
+	jmp error
+
+[BITS 64]
+enter_longmode_success:
+	cli
+	mov ax, GDT.Data
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
 	mov ss, ax
-	jmp 0x08:gdt_load_done
-gdt_load_done:
-	ret
+	mov rax, 0x2F592F412F4B2F4F
+	mov qword [0xB8000], rax
+	call kernel_main
 
-;; IDT
-global idt_load
-extern idtp
-
-idt_load:
-	lidt [idtp]
-	ret
-
-;; ISRs
-global _isr0
-global _isr1
-global _isr2
-global _isr3
-global _isr4
-global _isr5
-global _isr6
-global _isr7
-global _isr8
-global _isr9
-global _isr10
-global _isr11
-global _isr12
-global _isr13
-global _isr14
-global _isr15
-global _isr16
-global _isr17
-global _isr18
-global _isr19
-global _isr20
-global _isr21
-global _isr22
-global _isr23
-global _isr24
-global _isr25
-global _isr26
-global _isr27
-global _isr28
-global _isr29
-global _isr30
-global _isr31
-
-;; Divide By Zero
-_isr0:
+[BITS 32]
+error:
+	mov dword [0xB8000], 0x4F524F45
+	mov dword [0xB8004], 0x4F3A4F52
+	mov dword [0xB8008], 0x4F204F20
+	mov byte [0xB800A], al
 	cli
-	push byte 0
-	push byte 0
-	jmp isr_common_stub
-
-;; Debug
-_isr1:
-	cli
-	push byte 0
-	push byte 1
-	jmp isr_common_stub
-
-;; Non-Maskable Interrupt
-_isr2:
-	cli
-	push byte 0
-	push byte 2
-	jmp isr_common_stub
-
-;; INT 3
-_isr3:
-	cli
-	push byte 0
-	push byte 3
-	jmp isr_common_stub
-
-;; INTO
-_isr4:
-	cli
-	push byte 0
-	push byte 4
-	jmp isr_common_stub
-
-;; Out of Bounds
-_isr5:
-	cli
-	push byte 0
-	push byte 5
-	jmp isr_common_stub
-
-;; Invalid Opcode
-_isr6:
-	cli
-	push byte 0
-	push byte 6
-	jmp isr_common_stub
-
-;; Coprocessor Not Available
-_isr7:
-	cli
-	push byte 0
-	push byte 7
-	jmp isr_common_stub
-
-;; Double Fault (Error Code)
-_isr8:
-	cli
-	push byte 8
-	jmp isr_common_stub
-
-;; Coprocessor Segment Overrun
-_isr9:
-	cli
-	push byte 0
-	push byte 9
-	jmp isr_common_stub
-
-;; Bad TSS (Error Code)
-_isr10:
-	cli
-	push byte 10
-	jmp isr_common_stub
-
-;; Segment Not Present (Error Code)
-_isr11:
-	cli
-	push byte 11
-	jmp isr_common_stub
-
-;; Stack Fault (Error Code)
-_isr12:
-	cli
-	push byte 12
-	jmp isr_common_stub
-
-;; General Protection Fault (Error Code)
-_isr13:
-	cli
-	push byte 13
-	jmp isr_common_stub
-
-;; Page Fault (Error Code)
-_isr14:
-	cli
-	push byte 14
-	jmp isr_common_stub
-
-;; Reserved
-_isr15:
-	cli
-	push byte 0
-	push byte 15
-	jmp isr_common_stub
-
-;; Floating Point
-_isr16:
-	cli
-	push byte 0
-	push byte 16
-	jmp isr_common_stub
-
-;; Alignment Check
-_isr17:
-	cli
-	push byte 0
-	push byte 17
-	jmp isr_common_stub
-
-;; Machine Check
-_isr18:
-	cli
-	push byte 0
-	push byte 18
-	jmp isr_common_stub
-
-;; Reserved
-_isr19:
-	cli
-	push byte 0
-	push byte 19
-	jmp isr_common_stub
-
-;; Reserved
-_isr20:
-	cli
-	push byte 0
-	push byte 20
-	jmp isr_common_stub
-
-;; Reserved
-_isr21:
-	cli
-	push byte 0
-	push byte 21
-	jmp isr_common_stub
-
-;; Reserved
-_isr22:
-	cli
-	push byte 0
-	push byte 22
-	jmp isr_common_stub
-
-;; Reserved
-_isr23:
-	cli
-	push byte 0
-	push byte 23
-	jmp isr_common_stub
-
-;; Reserved
-_isr24:
-	cli
-	push byte 0
-	push byte 24
-	jmp isr_common_stub
-
-;; Reserved
-_isr25:
-	cli
-	push byte 0
-	push byte 25
-	jmp isr_common_stub
-
-;; Reserved
-_isr26:
-	cli
-	push byte 0
-	push byte 26
-	jmp isr_common_stub
-
-;; Reserved
-_isr27:
-	cli
-	push byte 0
-	push byte 27
-	jmp isr_common_stub
-
-;; Reserved
-_isr28:
-	cli
-	push byte 0
-	push byte 28
-	jmp isr_common_stub
-
-;; Reserved
-_isr29:
-	cli
-	push byte 0
-	push byte 29
-	jmp isr_common_stub
-
-;; Reserved
-_isr30:
-	cli
-	push byte 0
-	push byte 30
-	jmp isr_common_stub
-
-;; Reserved
-_isr31:
-	cli
-	push byte 0
-	push byte 31
-	jmp isr_common_stub
-
-extern isr_handle_fault
-
-isr_common_stub:
-	pusha
-	push ds
-	push es
-	push fs
-	push gs
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-	mov eax, esp
-	push eax
-	mov eax, isr_handle_fault
-	call eax
-	pop eax
-	pop gs
-	pop fs
-	pop es
-	pop ds
-	popa
-	add esp, 8
-	iret
-
-;; IRQs
-global _irq0
-global _irq1
-global _irq2
-global _irq3
-global _irq4
-global _irq5
-global _irq6
-global _irq7
-global _irq8
-global _irq9
-global _irq10
-global _irq11
-global _irq12
-global _irq13
-global _irq14
-global _irq15
-
-_irq0:
-	cli
-	push byte 0
-	push byte 32
-	jmp irq_common_stub
-
-_irq1:
-	cli
-	push byte 0
-	push byte 33
-	jmp irq_common_stub
-
-_irq2:
-	cli
-	push byte 0
-	push byte 34
-	jmp irq_common_stub
-
-_irq3:
-	cli
-	push byte 0
-	push byte 35
-	jmp irq_common_stub
-
-_irq4:
-	cli
-	push byte 0
-	push byte 36
-	jmp irq_common_stub
-
-_irq5:
-	cli
-	push byte 0
-	push byte 37
-	jmp irq_common_stub
-
-_irq6:
-	cli
-	push byte 0
-	push byte 38
-	jmp irq_common_stub
-
-_irq7:
-	cli
-	push byte 0
-	push byte 39
-	jmp irq_common_stub
-
-_irq8:
-	cli
-	push byte 0
-	push byte 40
-	jmp irq_common_stub
-
-_irq9:
-	cli
-	push byte 0
-	push byte 41
-	jmp irq_common_stub
-
-_irq10:
-	cli
-	push byte 0
-	push byte 42
-	jmp irq_common_stub
-
-_irq11:
-	cli
-	push byte 0
-	push byte 43
-	jmp irq_common_stub
-
-_irq12:
-	cli
-	push byte 0
-	push byte 44
-	jmp irq_common_stub
-
-_irq13:
-	cli
-	push byte 0
-	push byte 45
-	jmp irq_common_stub
-
-_irq14:
-	cli
-	push byte 0
-	push byte 46
-	jmp irq_common_stub
-
-_irq15:
-	cli
-	push byte 0
-	push byte 47
-	jmp irq_common_stub
-
-extern irq_handler
-
-irq_common_stub:
-	pusha
-	push ds
-	push es
-	push fs
-	push gs
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
-	mov eax, esp
-	push eax
-	mov eax, irq_handler
-	call eax
-	pop eax
-	pop gs
-	pop fs
-	pop es
-	pop ds
-	popa
-	add esp, 8
-	iret
-
-section .bss
-	resb 8192	; 8MB Memory Reserved
-_system_stack:
-;; THIS LINE INTENTIONALLY LEFT BLANK
+	jmp $

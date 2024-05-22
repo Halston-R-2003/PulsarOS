@@ -41,7 +41,7 @@ _start_rm:
 	mov si, load_kernel_msg
 	call puts_rm
 
-	BASE equ 0x1000
+	BASE equ 0x100
 	SECTORS equ 0x20
 
 	;; Reset Disk

@@ -129,18 +129,18 @@ _start_lm:
 	call clear_screen
 
 	mov rdi, TRAM+0x14*8
-	PRINT_P cmd_line, FG_BLACK, BG_WHITE
+	PRINT_P cmd_line, BG_BLACK, FG_WHITE
 
 	jmp $
 
 ;; Functions
 clear_screen:
-	PRINT_B os_title_head, FG_CYAN, BG_BLUE
+	PRINT_B os_title_head, BG_BLUE, FG_CYAN
 
 	mov rdi, TRAM+0x14*8
 
 	mov rcx, 0x14*24
-	mov rax, 0x7200720072007200
+	mov rax, 0x0F000F000F000F00
 	rep stosq
 
 	ret

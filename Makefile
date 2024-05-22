@@ -1,25 +1,19 @@
-.PHONY: all clean install run
+default: PulsarOS.img
 
-all: kernel
+pulsar-boot.bin: src/boot/pulsar-boot.asm
+	nasm -fbin -o pulsar-boot.bin src/boot/pulsar-boot.asm
 
-install: kernel
-	mkdir -p isodir/boot/grub
-	cp PulsarOS.bin isodir/boot/PulsarOS.bin
-	cp grub.cfg isodir/boot/grub/grub.cfg
-	grub-mkrescue -o PulsarOS.iso isodir
+kernel.bin:
+	nasm -fbin -o kernel.bin src/kernel/kernel.asm
 
-run: kernel
-	qemu-system-x86_64 -cdrom PulsarOS.iso
+PulsarOS.img: pulsar-boot.bin kernel.bin
+	cat pulsar-boot.bin > PulsarOS.bin
+	cat kernel.bin >> PulsarOS.bin
+	dd status=noxfer conv=notrunc if=PulsarOS.bin of=PulsarOS.img
 
-kernel: bootstrap.o multiboot.o link.ld kernel.o
-	x86_64-elf-gcc -T link.ld -o PulsarOS.bin -shared -ffreestanding -O2 -nostdlib bootstrap.o multiboot.o kernel.o -lgcc -n
-
-%.o: src/%.c
-	x86_64-elf-gcc -c $< -o $@ -std=gnu99 -ffreestanding -O2 -Wall -Wextra -I./include
-
-%.o: src/%.asm
-	nasm -f elf64 $< -o $@
+start: PulsarOS.img
+	qemu-system-i386 -fda PulsarOS.img
 
 clean:
-	rm -f *.o PulsarOS.bin PulsarOS.iso
-	rm -rf isodir
+	rm -f *.bin
+	rm -f PulsarOS.img

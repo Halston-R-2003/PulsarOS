@@ -131,9 +131,66 @@ _start_lm:
 	mov rdi, TRAM+0x14*8
 	PRINT_P cmd_line, BG_BLACK, FG_WHITE
 
-	jmp $
+	mov r8, 1
+	mov [current_row], r8
+
+	mov r8, 6
+	mov [current_col], r8
+
+	.start_user_input:
+		call get_key
+		call key_to_ascii
+
+		mov r10, rax
+		
+		;; Row Offset
+		mov rax, [current_row]
+		mov rbx, 0x14*8
+		mul rbx
+
+		mov r11, rax
+		mov rax, r10
+		
+		;; Column Offset
+		mov r12, [current_col]
+		shl r12, 1
+
+		lea rdi, [r11+r12+TRAM]
+		stosb
+
+		;; Go To Next Column
+		mov r13, [current_col]
+		inc r13
+		mov [current_col], r13
+
+		jmp .start_user_input
 
 ;; Functions
+key_to_ascii:
+	and eax, 0xFF
+	mov esi, qwerty
+	add esi, eax
+
+	mov al, [esi]
+
+	ret
+
+get_key:
+	mov al, 0xD2
+	out 0x64, al
+
+	mov al, 0x80
+	out 0x60, al
+
+	.key_up:
+		in al, 0x60
+		and al, 0b10000000
+		jnz .key_up
+	
+	in al, 0x60
+
+	ret
+
 clear_screen:
 	PRINT_B os_title_head, BG_BLUE, FG_CYAN
 
@@ -163,20 +220,40 @@ puts:
 		ret
 
 ;; Data
+current_row:
+	dq 0
+current_col:
+	dq 0
+
+current_input_len:
+	dq 0
+current_input_str:
+	times 32 db 0
+
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0014                             *",0
+	db "*                             PulsarOS v0.0.0.0015                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0014                              ",0
+	db "                              PulsarOS v0.0.0.0015                              ",0
 cmd_line:
 	db "> ",0
 
 TRAM equ 0xB8000
 VRAM equ 0xA0000
+
+;; QWERTY Table
+qwerty:
+	db "0",0xF,"1234567890-=",0xF,0xF
+	db "qwertyuiop"
+	db "[]",0xD,0x11
+	db "asdfghjkl;'"
+	db "`","\\"
+	db "zxcvbnm,./"
+	db 0xF,"*",0x12,0x20,0xF,0xF
 
 GDT64:
 	NULL_SEG:

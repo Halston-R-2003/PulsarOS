@@ -18,6 +18,11 @@ _start_rm:
 	mov ax, 0x7C0
 	mov ds, ax
 
+	;; Hide Cursor
+	mov ah, 0x01
+	mov cx, 0x2607
+	int 0x10
+
 	mov si, boot_head_top
 	call puts_rm
 

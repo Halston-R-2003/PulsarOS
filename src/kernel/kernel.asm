@@ -134,12 +134,22 @@ _start_lm:
 	mov r8, 1
 	mov [current_row], r8
 
-	mov r8, 6
+	mov r8, 2
 	mov [current_col], r8
 
 	.start_user_input:
 		call get_key
+
+		cmp al, 28
+		je .cmd_entered
+
 		call key_to_ascii
+
+		;; Store Entered Char
+		mov r8, [current_input_len]
+		mov byte [current_input_str + r8], al
+		inc r8
+		mov [current_input_str], r8
 
 		mov r10, rax
 		
@@ -162,6 +172,16 @@ _start_lm:
 		mov r13, [current_col]
 		inc r13
 		mov [current_col], r13
+
+		jmp .start_user_input
+	
+	.cmd_entered:
+		;; Go to next line
+		mov rax, [current_row]
+		inc rax
+		mov [current_row], rax
+
+		mov qword [current_col], 0
 
 		jmp .start_user_input
 
@@ -219,6 +239,9 @@ puts:
 		pop rax
 		ret
 
+osver_cmd:
+	ret
+
 ;; Data
 current_row:
 	dq 0
@@ -230,17 +253,27 @@ current_input_len:
 current_input_str:
 	times 32 db 0
 
+;; Command Table
+cmd_table:
+	dq 1 ; # of commands
+
+	dq osver_cmd_str
+	dq osver_cmd
+
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0015                             *",0
+	db "*                             PulsarOS v0.0.0.0016                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0015                              ",0
+	db "                              PulsarOS v0.0.0.0016                              ",0
 cmd_line:
 	db "> ",0
+
+osver_cmd_str:
+	db "osver",0
 
 TRAM equ 0xB8000
 VRAM equ 0xA0000
@@ -285,4 +318,4 @@ GDT64:
 	GDT_LENGTH:
 
 ;; Fill Sector
-times 1024-($-$$) db 0
+times 1536-($-$$) db 0

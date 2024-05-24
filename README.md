@@ -34,3 +34,5 @@ Build 13 - 64-bit conversion
 Build 14 - Switch from GRUB to custom bootloader
 
 Build 15 - Rudimentary Keyboard Support
+
+Build 16 - Prepare Command Structure

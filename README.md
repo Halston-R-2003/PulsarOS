@@ -38,3 +38,5 @@ Build 15 - Rudimentary Keyboard Support
 Build 16 - Prepare Command Structure
 
 Build 17 - Implement "Command Not Found" Message
+
+Build 18 - Implement Command Execution

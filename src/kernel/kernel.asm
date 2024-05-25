@@ -151,21 +151,7 @@ _start_lm:
 		inc r8
 		mov [current_input_str], r8
 
-		mov r10, rax
-		
-		;; Row Offset
-		mov rax, [current_row]
-		mov rbx, 0x14*8
-		mul rbx
-
-		mov r11, rax
-		mov rax, r10
-		
-		;; Column Offset
-		mov r12, [current_col]
-		shl r12, 1
-
-		lea rdi, [r11+r12+TRAM]
+		call set_current_pos
 		stosb
 
 		;; Go To Next Column
@@ -183,9 +169,67 @@ _start_lm:
 
 		mov qword [current_col], 0
 
+		mov r8, [cmd_table]
+		xor r9, r9
+
+		.start:
+			cmp r9, r8
+			je .cmd_not_found
+
+			inc r9
+			jmp .start
+
+		.cmd_not_found:
+			call set_current_pos
+			PRINT_P cmd_not_found_str, BG_BLACK, FG_RED
+
+			;; Go to next line
+			mov rax, [current_row]
+			inc rax
+			mov [current_row], rax
+
+			mov qword [current_col], 0
+
+			;; Diplay command line
+			call set_current_pos
+			PRINT_P cmd_line, BG_BLACK, FG_WHITE
+
+			mov qword [current_col], 2
+
+		.end:
+
+
 		jmp .start_user_input
 
 ;; Functions
+
+;; Set RDI to current position based on current row and column
+set_current_pos:
+	push rax
+	push rbx
+	push r11
+	push r12
+
+	;; Line offset
+	mov rax, [current_row]
+	mov rbx, 0x14*8
+	mul rbx
+
+	mov r11, rax
+
+	;; Column offset
+	mov r12, [current_col]
+	shl r12, 1
+
+	lea rdi, [r11+r12+TRAM]
+
+	pop r12
+	pop r11
+	pop rbx
+	pop rax
+
+	ret
+
 key_to_ascii:
 	and eax, 0xFF
 	mov esi, qwerty
@@ -239,7 +283,10 @@ puts:
 		pop rax
 		ret
 
-osver_cmd:
+osinfo_cmd:
+	ret
+
+reboot_cmd:
 	ret
 
 ;; Data
@@ -255,25 +302,33 @@ current_input_str:
 
 ;; Command Table
 cmd_table:
-	dq 1 ; # of commands
+	dq 2 ; # of commands
 
-	dq osver_cmd_str
-	dq osver_cmd
+	dq osinfo_cmd_str
+	dq osinfo_cmd
+
+	dq reboot_cmd_str
+	dq reboot_cmd
 
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0016                             *",0
+	db "*                             PulsarOS v0.0.0.0017                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0016                              ",0
+	db "                              PulsarOS v0.0.0.0017                              ",0
 cmd_line:
 	db "> ",0
 
-osver_cmd_str:
-	db "osver",0
+osinfo_cmd_str:
+	db "osinfo",0
+reboot_cmd_str:
+	db "reboot",0
+
+cmd_not_found_str:
+	db "Command not found!",0
 
 TRAM equ 0xB8000
 VRAM equ 0xA0000

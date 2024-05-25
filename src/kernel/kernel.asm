@@ -128,18 +128,16 @@ _start_pm:
 _start_lm:
 	call clear_screen
 
-	mov rdi, TRAM+0x14*8
+	mov qword [current_row], 1
+	call set_current_pos
+
 	PRINT_P cmd_line, BG_BLACK, FG_WHITE
-
-	mov r8, 1
-	mov [current_row], r8
-
-	mov r8, 2
-	mov [current_col], r8
+	mov qword [current_col], 2
 
 	.start_user_input:
 		call get_key
-
+		
+		;; User pressed ENTER key
 		cmp al, 28
 		je .cmd_entered
 
@@ -149,7 +147,7 @@ _start_lm:
 		mov r8, [current_input_len]
 		mov byte [current_input_str + r8], al
 		inc r8
-		mov [current_input_str], r8
+		mov [current_input_len], r8
 
 		call set_current_pos
 		stosb
@@ -169,6 +167,10 @@ _start_lm:
 
 		mov qword [current_col], 0
 
+		;; Zero-terminate input string
+		mov r8, [current_input_len]
+		mov byte [current_input_str+r8], 0
+
 		mov r8, [cmd_table]
 		xor r9, r9
 
@@ -176,12 +178,54 @@ _start_lm:
 			cmp r9, r8
 			je .cmd_not_found
 
+			mov rsi, current_input_str
+			mov r10, r9
+			shl r10, 4
+			mov rdi, [r10+cmd_table+8]
+
+		.next_char:
+			mov al, [rsi]
+			mov bl, [rdi]
+
+			cmp al, 0
+			jne .compare
+
+			cmp bl, 0
+			jne .compare
+
+			mov r10, r9
+			inc r10
+			shl r10, 4
+
+			call [cmd_table+r10]
+
+			jmp .end
+
+		.compare:
+			cmp al, 0
+			je .next_cmd
+
+			cmp bl, 0
+			je .next_cmd
+
+			cmp al, bl
+			jne .next_cmd
+
+			inc rsi
+			inc rdi
+
+			jmp .next_char
+
+		.next_cmd:
 			inc r9
 			jmp .start
 
 		.cmd_not_found:
 			call set_current_pos
 			PRINT_P cmd_not_found_str, BG_BLACK, FG_RED
+
+		.end:
+			mov qword [current_input_len], 0
 
 			;; Go to next line
 			mov rax, [current_row]
@@ -196,10 +240,7 @@ _start_lm:
 
 			mov qword [current_col], 2
 
-		.end:
-
-
-		jmp .start_user_input
+			jmp .start_user_input
 
 ;; Functions
 
@@ -207,24 +248,18 @@ _start_lm:
 set_current_pos:
 	push rax
 	push rbx
-	push r11
-	push r12
 
 	;; Line offset
 	mov rax, [current_row]
 	mov rbx, 0x14*8
 	mul rbx
 
-	mov r11, rax
-
 	;; Column offset
-	mov r12, [current_col]
-	shl r12, 1
+	mov rbx, [current_col]
+	shl rbx, 1
 
-	lea rdi, [r11+r12+TRAM]
+	lea rdi, [rax+rbx+TRAM]
 
-	pop r12
-	pop r11
 	pop rbx
 	pop rax
 
@@ -232,10 +267,8 @@ set_current_pos:
 
 key_to_ascii:
 	and eax, 0xFF
-	mov esi, qwerty
-	add esi, eax
 
-	mov al, [esi]
+	mov al, [eax+qwerty]
 
 	ret
 
@@ -284,9 +317,13 @@ puts:
 		ret
 
 osinfo_cmd:
+	call set_current_pos
+	PRINT_P osinfo_cmd_str, BG_BLACK, FG_GREEN
 	ret
 
 reboot_cmd:
+	call set_current_pos
+	PRINT_P reboot_cmd_str, BG_BLACK, FG_GREEN
 	ret
 
 ;; Data
@@ -313,12 +350,12 @@ cmd_table:
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0017                             *",0
+	db "*                             PulsarOS v0.0.0.0018                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0017                              ",0
+	db "                              PulsarOS v0.0.0.0018                              ",0
 cmd_line:
 	db "> ",0
 

@@ -40,3 +40,5 @@ Build 16 - Prepare Command Structure
 Build 17 - Implement "Command Not Found" Message
 
 Build 18 - Implement Command Execution
+
+Build 19 - Add "clear" Command

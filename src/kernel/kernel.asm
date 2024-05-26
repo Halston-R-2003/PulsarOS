@@ -326,6 +326,19 @@ reboot_cmd:
 	PRINT_P reboot_cmd_str, BG_BLACK, FG_GREEN
 	ret
 
+clear_cmd:
+	call clear_screen
+
+	mov rax, [current_row]
+	xor rax, rax
+	mov [current_row], rax
+
+	mov qword [current_col], 2
+
+	call set_current_pos
+
+	ret
+
 ;; Data
 current_row:
 	dq 0
@@ -339,7 +352,7 @@ current_input_str:
 
 ;; Command Table
 cmd_table:
-	dq 2 ; # of commands
+	dq 3 ; # of commands
 
 	dq osinfo_cmd_str
 	dq osinfo_cmd
@@ -347,15 +360,18 @@ cmd_table:
 	dq reboot_cmd_str
 	dq reboot_cmd
 
+	dq clear_cmd_str
+	dq clear_cmd
+
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0018                             *",0
+	db "*                             PulsarOS v0.0.0.0019                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0018                              ",0
+	db "                              PulsarOS v0.0.0.0019                              ",0
 cmd_line:
 	db "> ",0
 
@@ -363,6 +379,8 @@ osinfo_cmd_str:
 	db "osinfo",0
 reboot_cmd_str:
 	db "reboot",0
+clear_cmd_str:
+	db "clear",0
 
 cmd_not_found_str:
 	db "Command not found!",0

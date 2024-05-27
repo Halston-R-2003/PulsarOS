@@ -42,3 +42,5 @@ Build 17 - Implement "Command Not Found" Message
 Build 18 - Implement Command Execution
 
 Build 19 - Add "clear" Command
+
+Build 20 - Add "reboot" Command

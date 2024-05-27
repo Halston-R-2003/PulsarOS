@@ -322,8 +322,12 @@ osinfo_cmd:
 	ret
 
 reboot_cmd:
-	call set_current_pos
-	PRINT_P reboot_cmd_str, BG_BLACK, FG_GREEN
+	in al, 0x64
+	or al, 0xFE
+	out 0x64, al
+	mov al, 0xFE
+	out 0x64, al
+
 	ret
 
 clear_cmd:
@@ -366,12 +370,12 @@ cmd_table:
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0019                             *",0
+	db "*                             PulsarOS v0.0.0.0020                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0019                              ",0
+	db "                              PulsarOS v0.0.0.0020                              ",0
 cmd_line:
 	db "> ",0
 

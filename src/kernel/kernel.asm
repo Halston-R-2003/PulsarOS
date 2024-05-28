@@ -38,6 +38,25 @@ jmp _start_rm
 	call puts
 %endmacro
 
+%macro PRINT_NORM 2
+	call set_current_pos
+	mov rbx, %1
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call puts
+
+	mov rax, [current_col]
+	add rax, %2
+	mov [current_col], rax
+%endmacro
+
+%macro GOTO_NEXT_LINE 0
+	mov rax, [current_row]
+	inc rax
+	mov [current_row], rax
+
+	mov qword [current_col], 0
+%endmacro
+
 _start_rm:
 	;; Set Data Segment
 	xor ax, ax
@@ -160,12 +179,7 @@ _start_lm:
 		jmp .start_user_input
 	
 	.cmd_entered:
-		;; Go to next line
-		mov rax, [current_row]
-		inc rax
-		mov [current_row], rax
-
-		mov qword [current_col], 0
+		GOTO_NEXT_LINE
 
 		;; Zero-terminate input string
 		mov r8, [current_input_len]
@@ -227,12 +241,7 @@ _start_lm:
 		.end:
 			mov qword [current_input_len], 0
 
-			;; Go to next line
-			mov rax, [current_row]
-			inc rax
-			mov [current_row], rax
-
-			mov qword [current_col], 0
+			GOTO_NEXT_LINE
 
 			;; Diplay command line
 			call set_current_pos
@@ -316,9 +325,228 @@ puts:
 		pop rax
 		ret
 
-osinfo_cmd:
+putint:
+	push rax
+	push rbx
+	push rdx
+	push r10
+	push rsi
+
+	mov rax, r8
+	mov r10, rdx
+
+	xor rsi, rsi
+
+	.loop:
+		xor rdx, rdx
+		mov rbx, 10
+		div rbx
+		add rdx, 48
+
+		push rdx
+		inc rsi
+
+		cmp rax, 0
+		jne .loop
+	
+	.next:
+		cmp rsi, 0
+		je .exit
+		dec rsi
+
+		pop rax
+		stosb
+
+		mov rdx, r10
+		mov al, dl
+		stosb
+
+		jmp .next
+	
+	.exit:
+		pop rsi
+		pop r10
+		pop rdx
+		pop rbx
+		pop rax
+
+		ret
+
+int_str_len:
+	push rbx
+	push rdx
+	push rsi
+
+	mov rax, r8
+
+	xor rsi, rsi
+
+	.loop:
+		xor rdx, rdx
+		mov rbx, 10
+		div rbx
+		add rdx, 48
+
+		inc rsi
+
+		cmp rax, 0
+		jne .loop
+	
+	.exit:
+		mov rax, rsi
+
+		pop rsi
+		pop rdx
+		pop rbx
+
+		ret
+
+cpuinfo_cmd:
+	push rbp
+	mov rbp, rsp
+	sub rsp, 16
+
+	push rax
+	push rbx
+	push rcx
+	push rdx
+
+	PRINT_NORM cpuinfo_vendor_id, cpuinfo_vendor_id_len
+
+	xor eax, eax
+	cpuid
+
+	mov [rsp+0], ebx
+	mov [rsp+4], edx
+	mov [rsp+8], ecx
+
 	call set_current_pos
-	PRINT_P osinfo_cmd_str, BG_BLACK, FG_GREEN
+	mov rbx, rsp
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call puts
+
+	GOTO_NEXT_LINE
+	PRINT_NORM cpuinfo_stepping, cpuinfo_stepping_len
+
+	mov eax, 1
+	cpuid
+
+	mov r15, rax
+
+	mov r8, r15
+	and r8, 0xF
+
+	call set_current_pos
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call puts
+
+	GOTO_NEXT_LINE
+	PRINT_NORM cpuinfo_model, cpuinfo_model_len
+
+	;; Model ID
+	mov r14, r15
+	and r14, 0xF0
+
+	;; Family ID
+	mov r13, r15
+	and r13, 0xF00
+
+	;; Extended Model ID
+	mov r12, r15
+	and r12, 0xF0000
+
+	;; Extended Family ID
+	mov r11, r15
+	and r11, 0xFF00000
+
+	shl r12, 4
+	mov r8, r14
+	add r8, r12
+	
+	call set_current_pos
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call putint
+
+	GOTO_NEXT_LINE
+	PRINT_NORM cpuinfo_family, cpuinfo_family_len
+
+	mov r8, r13
+	add r8, r11
+	call set_current_pos
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call putint
+
+	GOTO_NEXT_LINE
+	PRINT_NORM cpuinfo_features, cpuinfo_features_len
+
+	mov eax, 1
+	cpuid
+
+	.mmx:
+		mov r15, rdx
+		and r15, 1<<23
+		cmp r15, 0
+		je .sse
+
+		PRINT_NORM cpuinfo_mmx, cpuinfo_mmx_len
+	
+	.sse:
+		mov r15, rdx
+		and r15, 1<<25
+		cmp r15, 0
+		je .sse2
+
+		PRINT_NORM cpuinfo_sse, cpuinfo_sse_len
+
+	.sse2:
+		mov r15, rdx
+		and r15, 1<<26
+		cmp r15, 0
+		je .ht
+
+		PRINT_NORM cpuinfo_sse2, cpuinfo_sse2_len
+	
+	.ht:
+		mov r15, rdx
+		and r15, 1<<28
+		cmp r15, 0
+		je .sse3
+
+		PRINT_NORM cpuinfo_ht, cpuinfo_ht_len
+	
+	.sse3:
+		mov r15, rcx
+		and r15, 1<<9
+		cmp r15, 0
+		je .sse4_1
+
+		PRINT_NORM cpuinfo_sse3, cpuinfo_sse3_len
+	
+	.sse4_1:
+		mov r15, rcx
+		and r15, 1<<19
+		cmp r15, 0
+		je .sse4_2
+
+		PRINT_NORM cpuinfo_sse4_1, cpuinfo_sse4_1_len
+	
+	.sse4_2:
+		mov r15, rcx
+		and r15, 1<<20
+		cmp r15, 0
+		je .last
+
+		PRINT_NORM cpuinfo_sse4_2, cpuinfo_sse4_2_len
+	
+	.last:
+		pop rdx
+		pop rcx
+		pop rbx
+		pop rax
+
+		sub rsp, 16
+		leave
+
 	ret
 
 reboot_cmd:
@@ -358,8 +586,8 @@ current_input_str:
 cmd_table:
 	dq 3 ; # of commands
 
-	dq osinfo_cmd_str
-	dq osinfo_cmd
+	dq cpuinfo_cmd_str
+	dq cpuinfo_cmd
 
 	dq reboot_cmd_str
 	dq reboot_cmd
@@ -367,20 +595,25 @@ cmd_table:
 	dq clear_cmd_str
 	dq clear_cmd
 
+%macro STRING 2
+	%1 db %2, 0
+	%1_len equ $ - %1 - 1
+%endmacro
+
 kernel_head_top:
 	db "********************************************************************************",0
 kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0020                             *",0
+	db "*                             PulsarOS v0.0.0.0021                             *",0
 kernel_head_bot:
 	db "********************************************************************************",0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0020                              ",0
+	db "                              PulsarOS v0.0.0.0021                              ",0
 cmd_line:
 	db "> ",0
 
-osinfo_cmd_str:
-	db "osinfo",0
+cpuinfo_cmd_str:
+	db "cpuinfo",0
 reboot_cmd_str:
 	db "reboot",0
 clear_cmd_str:
@@ -388,6 +621,19 @@ clear_cmd_str:
 
 cmd_not_found_str:
 	db "Command not found!",0
+
+STRING cpuinfo_vendor_id, "Vendor ID: "
+STRING cpuinfo_stepping, "Stepping: "
+STRING cpuinfo_model, "Model: "
+STRING cpuinfo_family, "Family: "
+STRING cpuinfo_features, "Features: "
+STRING cpuinfo_mmx, "MMX "
+STRING cpuinfo_sse, "SSE "
+STRING cpuinfo_sse2, "SSE2 "
+STRING cpuinfo_sse3, "SSE3 "
+STRING cpuinfo_sse4_1, "SSE4_1 "
+STRING cpuinfo_sse4_2, "SSE4_2 "
+STRING cpuinfo_ht, "HT "
 
 TRAM equ 0xB8000
 VRAM equ 0xA0000
@@ -432,4 +678,4 @@ GDT64:
 	GDT_LENGTH:
 
 ;; Fill Sector
-times 1536-($-$$) db 0
+times 2560-($-$$) db 0

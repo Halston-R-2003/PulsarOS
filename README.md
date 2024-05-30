@@ -46,3 +46,5 @@ Build 19 - Add "clear" Command
 Build 20 - Add "reboot" Command
 
 Build 21 - Add "cpuinfo" Command
+
+Build 22 - Optimize Kernel and "clear" Command

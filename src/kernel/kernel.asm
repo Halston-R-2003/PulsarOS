@@ -25,51 +25,10 @@ jmp _start_rm
 
 %define STYLE(fg,bg) ((fg<<4)+bg)
 
-%macro PRINT_B 3
-	mov rdi, TRAM
-	mov rbx, %1
-	mov dl, STYLE(%2,%3)
-	call puts
-%endmacro
-
-%macro PRINT_P 3
-	mov rbx, %1
-	mov dl, STYLE(%2,%3)
-	call puts
-%endmacro
-
-%macro PRINT_NORM 2
-	call set_current_pos
-	mov rbx, %1
-	mov dl, STYLE(BG_BLACK, FG_WHITE)
-	call puts
-
-	mov rax, [current_col]
-	add rax, %2
-	mov [current_col], rax
-%endmacro
-
-%macro GOTO_NEXT_LINE 0
-	mov rax, [current_row]
-	inc rax
-	mov [current_row], rax
-
-	mov qword [current_col], 0
-%endmacro
-
 _start_rm:
 	;; Set Data Segment
 	xor ax, ax
 	mov ds, ax
-
-	mov si, kernel_head_top
-	call puts_rm
-
-	mov si, kernel_head_mid
-	call puts_rm
-
-	mov si, kernel_head_bot
-	call puts_rm
 
 	;; Disable Interrupts
 	cli
@@ -145,13 +104,13 @@ _start_pm:
 [BITS 64]
 
 _start_lm:
-	call clear_screen
+	call clear_cmd
 
-	mov qword [current_row], 1
-	call set_current_pos
+	call goto_next_line
 
-	PRINT_P cmd_line, BG_BLACK, FG_WHITE
-	mov qword [current_col], 2
+	mov r8, cmd_line
+	mov r9, cmd_line_len
+	call print_norm
 
 	.start_user_input:
 		call get_key
@@ -179,7 +138,7 @@ _start_lm:
 		jmp .start_user_input
 	
 	.cmd_entered:
-		GOTO_NEXT_LINE
+		call goto_next_line
 
 		;; Zero-terminate input string
 		mov r8, [current_input_len]
@@ -236,18 +195,20 @@ _start_lm:
 
 		.cmd_not_found:
 			call set_current_pos
-			PRINT_P cmd_not_found_str, BG_BLACK, FG_RED
+			
+			mov rbx, cmd_not_found_str
+			mov dl, STYLE(BG_BLACK, FG_RED)
+			call puts
 
 		.end:
 			mov qword [current_input_len], 0
 
-			GOTO_NEXT_LINE
+			call goto_next_line
 
 			;; Diplay command line
-			call set_current_pos
-			PRINT_P cmd_line, BG_BLACK, FG_WHITE
-
-			mov qword [current_col], 2
+			mov r8, cmd_line
+			mov r9, cmd_line_len
+			call print_norm
 
 			jmp .start_user_input
 
@@ -257,6 +218,7 @@ _start_lm:
 set_current_pos:
 	push rax
 	push rbx
+	push rdx
 
 	;; Line offset
 	mov rax, [current_row]
@@ -269,7 +231,23 @@ set_current_pos:
 
 	lea rdi, [rax+rbx+TRAM]
 
+	pop rdx
 	pop rbx
+	pop rax
+
+	ret
+
+goto_next_line:
+	push rax
+
+	;; Go to next line
+	mov rax, [current_row]
+	inc rax
+	mov [current_row], rax
+
+	;; Start at first column
+	mov qword [current_col], 0
+
 	pop rax
 
 	ret
@@ -297,14 +275,25 @@ get_key:
 
 	ret
 
-clear_screen:
-	PRINT_B os_title_head, BG_BLUE, FG_CYAN
+print_norm:
+	push rax
+	push rbx
+	push rdx
+	push rdi
 
-	mov rdi, TRAM+0x14*8
+	call set_current_pos
+	mov rbx, r8
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call puts
 
-	mov rcx, 0x14*24
-	mov rax, 0x0F000F000F000F00
-	rep stosq
+	mov rax, [current_col]
+	add rax, r9
+	mov [current_col], rax
+
+	pop rdi
+	pop rdx
+	pop rbx
+	pop rax
 
 	ret
 
@@ -411,7 +400,9 @@ cpuinfo_cmd:
 	push rcx
 	push rdx
 
-	PRINT_NORM cpuinfo_vendor_id, cpuinfo_vendor_id_len
+	mov r8, cpuinfo_vendor_id
+	mov r9, cpuinfo_vendor_id_len
+	call print_norm
 
 	xor eax, eax
 	cpuid
@@ -425,8 +416,10 @@ cpuinfo_cmd:
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call puts
 
-	GOTO_NEXT_LINE
-	PRINT_NORM cpuinfo_stepping, cpuinfo_stepping_len
+	call goto_next_line
+	mov r8, cpuinfo_stepping
+	mov r9, cpuinfo_stepping_len
+	call print_norm
 
 	mov eax, 1
 	cpuid
@@ -440,8 +433,10 @@ cpuinfo_cmd:
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call puts
 
-	GOTO_NEXT_LINE
-	PRINT_NORM cpuinfo_model, cpuinfo_model_len
+	call goto_next_line
+	mov r8, cpuinfo_model
+	mov r9, cpuinfo_model_len
+	call print_norm
 
 	;; Model ID
 	mov r14, r15
@@ -467,8 +462,10 @@ cpuinfo_cmd:
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call putint
 
-	GOTO_NEXT_LINE
-	PRINT_NORM cpuinfo_family, cpuinfo_family_len
+	call goto_next_line
+	mov r8, cpuinfo_family
+	mov r9, cpuinfo_family_len
+	call print_norm
 
 	mov r8, r13
 	add r8, r11
@@ -476,8 +473,10 @@ cpuinfo_cmd:
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call putint
 
-	GOTO_NEXT_LINE
-	PRINT_NORM cpuinfo_features, cpuinfo_features_len
+	call goto_next_line
+	mov r8, cpuinfo_features
+	mov r9, cpuinfo_features_len
+	call print_norm
 
 	mov eax, 1
 	cpuid
@@ -488,7 +487,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .sse
 
-		PRINT_NORM cpuinfo_mmx, cpuinfo_mmx_len
+		mov r8, cpuinfo_mmx
+		mov r9, cpuinfo_mmx_len
+		call print_norm
 	
 	.sse:
 		mov r15, rdx
@@ -496,7 +497,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .sse2
 
-		PRINT_NORM cpuinfo_sse, cpuinfo_sse_len
+		mov r8, cpuinfo_sse
+		mov r9, cpuinfo_sse_len
+		call print_norm
 
 	.sse2:
 		mov r15, rdx
@@ -504,7 +507,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .ht
 
-		PRINT_NORM cpuinfo_sse2, cpuinfo_sse2_len
+		mov r8, cpuinfo_sse2
+		mov r9, cpuinfo_sse2_len
+		call print_norm
 	
 	.ht:
 		mov r15, rdx
@@ -512,7 +517,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .sse3
 
-		PRINT_NORM cpuinfo_ht, cpuinfo_ht_len
+		mov r8, cpuinfo_ht
+		mov r9, cpuinfo_ht_len
+		call print_norm
 	
 	.sse3:
 		mov r15, rcx
@@ -520,7 +527,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .sse4_1
 
-		PRINT_NORM cpuinfo_sse3, cpuinfo_sse3_len
+		mov r8, cpuinfo_sse3
+		mov r9, cpuinfo_sse3_len
+		call print_norm
 	
 	.sse4_1:
 		mov r15, rcx
@@ -528,7 +537,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .sse4_2
 
-		PRINT_NORM cpuinfo_sse4_1, cpuinfo_sse4_1_len
+		mov r8, cpuinfo_sse4_1
+		mov r9, cpuinfo_sse4_1_len
+		call print_norm
 	
 	.sse4_2:
 		mov r15, rcx
@@ -536,7 +547,9 @@ cpuinfo_cmd:
 		cmp r15, 0
 		je .last
 
-		PRINT_NORM cpuinfo_sse4_2, cpuinfo_sse4_2_len
+		mov r8, cpuinfo_sse4_2
+		mov r9, cpuinfo_sse4_2_len
+		call print_norm
 	
 	.last:
 		pop rdx
@@ -559,15 +572,18 @@ reboot_cmd:
 	ret
 
 clear_cmd:
-	call clear_screen
-
-	mov rax, [current_row]
-	xor rax, rax
-	mov [current_row], rax
-
-	mov qword [current_col], 2
-
 	call set_current_pos
+	mov rbx, os_title_head
+	mov dl, STYLE(BG_BLUE, FG_CYAN)
+	call puts
+
+	mov rdi, TRAM+0x14*8
+	mov rcx, 0x14*24
+	mov rax, 0x0F000F000F000F00
+	rep stosq
+
+	mov qword [current_row], 0
+	mov qword [current_col], 0
 
 	ret
 
@@ -600,17 +616,8 @@ cmd_table:
 	%1_len equ $ - %1 - 1
 %endmacro
 
-kernel_head_top:
-	db "********************************************************************************",0
-kernel_head_mid:
-	db "*                             PulsarOS v0.0.0.0021                             *",0
-kernel_head_bot:
-	db "********************************************************************************",0
-
 os_title_head:
-	db "                              PulsarOS v0.0.0.0021                              ",0
-cmd_line:
-	db "> ",0
+	db "                              PulsarOS v0.0.0.0022                              ",0
 
 cpuinfo_cmd_str:
 	db "cpuinfo",0
@@ -619,8 +626,8 @@ reboot_cmd_str:
 clear_cmd_str:
 	db "clear",0
 
-cmd_not_found_str:
-	db "Command not found!",0
+STRING cmd_line, "> "
+STRING cmd_not_found_str, "Command not found!"
 
 STRING cpuinfo_vendor_id, "Vendor ID: "
 STRING cpuinfo_stepping, "Stepping: "

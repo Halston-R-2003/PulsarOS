@@ -1,10 +1,13 @@
 default: PulsarOS.img
 
-pulsar-boot.bin: src/boot/pulsar-boot.asm
-	nasm -fbin -o pulsar-boot.bin src/boot/pulsar-boot.asm
+KERNEL_SRC=$(wildcard src/kernel/*.asm)
+KERNEL_UTILS_SRC=$(wildcard src/utils/*.asm)
 
-kernel.bin:
-	nasm -fbin -o kernel.bin src/kernel/kernel.asm
+pulsar-boot.bin: src/boot/pulsar-boot.asm
+	nasm -w+all -fbin -o pulsar-boot.bin src/boot/pulsar-boot.asm
+
+kernel.bin: $(KERNEL_SRC) $(KERNEL_UTILS_SRC)
+	nasm -w+all -fbin -o kernel.bin src/kernel/kernel.asm
 
 PulsarOS.img: pulsar-boot.bin kernel.bin
 	cat pulsar-boot.bin > PulsarOS.bin

@@ -13,6 +13,9 @@ STRING cpuinfo_stepping, "Stepping: "
 STRING cpuinfo_model, "Model: "
 STRING cpuinfo_family, "Family: "
 STRING cpuinfo_features, "Features: "
+STRING cpuinfo_cpu_brand, "CPU Brand: "
+STRING cpuinfo_max_frequency, "Max Frequency: "
+STRING cpuinfo_current_frequency, "Current Frequency: "
 STRING cpuinfo_mmx, "MMX "
 STRING cpuinfo_sse, "SSE "
 STRING cpuinfo_sse2, "SSE2 "
@@ -44,12 +47,13 @@ cmd_table:
 cpuinfo_cmd:
 	push rbp
 	mov rbp, rsp
-	sub rsp, 16
+	sub rsp, 20
 
 	push rax
 	push rbx
 	push rcx
 	push rdx
+	push r10
 
 	mov r8, cpuinfo_vendor_id
 	mov r9, cpuinfo_vendor_id_len
@@ -66,6 +70,31 @@ cpuinfo_cmd:
 	mov rbx, rsp
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call puts
+	call goto_next_line
+
+	mov r8, cpuinfo_cpu_brand
+	mov r9, cpuinfo_cpu_brand_len
+	call print_norm
+
+	xor r10, r10
+
+	.next:
+		mov rax, 0x80000002
+		add rax, r10
+		cpuid
+
+		mov [rsp+0], eax
+		mov [rsp+4], ebx
+		mov [rsp+8], ecx
+		mov [rsp+12], edx
+
+		mov r8, rsp
+		mov r9, 16
+		call print_norm
+
+		inc r10
+		cmp r10, 3
+		jne .next
 
 	call goto_next_line
 	mov r8, cpuinfo_stepping
@@ -92,20 +121,23 @@ cpuinfo_cmd:
 	;; Model ID
 	mov r14, r15
 	and r14, 0xF0
+	shr r14, 4
 
 	;; Family ID
 	mov r13, r15
 	and r13, 0xF00
+	shr r13, 8
 
 	;; Extended Model ID
 	mov r12, r15
 	and r12, 0xF0000
+	shr r12, 12
 
 	;; Extended Family ID
 	mov r11, r15
 	and r11, 0xFF00000
+	shr r11, 16
 
-	shl r12, 4
 	mov r8, r14
 	mov r8, r12
 
@@ -196,19 +228,82 @@ cpuinfo_cmd:
 		mov r15, rcx
 		and r15, 1<<20
 		cmp r15, 0
-		je .last
+		je .freq
 
 		mov r8, cpuinfo_sse4_2
 		mov r9, cpuinfo_sse4_2_len
 		call print_norm
 	
+	.freq:
+		call goto_next_line
+
+		mov r8, cpuinfo_max_frequency
+		mov r9, cpuinfo_max_frequency_len
+		call print_norm
+
+		mov eax, 0x80000004
+		cpuid
+
+		mov [rsp+0], eax
+		mov [rsp+4], ebx
+		mov [rsp+8], ecx
+		mov [rsp+12], edx
+
+		mov rax, rsp
+
+		.next_char:
+			mov bl, [rax]
+			inc rax
+			cmp bl, 0
+			jne .next_char
+
+		xor rbx, rbx
+		xor rcx, rcx
+
+		mov cl, [rax-5]
+		sub rcx, 48
+		imul rcx, 10
+		add rbx, rcx
+
+		mov cl, [rax-6]
+		sub rcx, 48
+		imul rcx, 100
+		add rbx, rcx
+
+		movzx rcx, byte [rax-8]
+		sub rcx, 48
+		imul rcx, 1000
+		add rbx, rcx
+
+		call set_current_pos
+		mov r8, rbx
+		mov dl, STYLE(BG_BLACK, FG_WHITE)
+		call putint
+
+		call goto_next_line
+
+		mov r8, cpuinfo_current_frequency
+		mov r9, cpuinfo_current_frequency_len
+		call print_norm
+
+		xor rax, rax
+		mov ax, cs
+		and ax, 0b11
+
+		cmp ax, 0
+		jne .last
+
+		mov ecx, 0xE7
+		rdmsr
+	
 	.last:
+		pop r10
 		pop rdx
 		pop rcx
 		pop rbx
 		pop rax
 
-		sub rsp, 16
+		sub rsp, 20
 		leave
 	
 	ret

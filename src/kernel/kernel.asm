@@ -40,7 +40,7 @@ _start_pm:
 
 	;; Activate PAE
 	mov eax, cr4
-	or eax, 0b100000
+	or eax, 1<<5
 	mov cr4, eax
 
 	;; Clean Pages
@@ -118,4 +118,4 @@ GDT64:
 	GDT_LENGTH:
 
 ;; Fill Sector
-times 2560-($-$$) db 0
+times 4096-($-$$) db 0

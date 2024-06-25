@@ -294,7 +294,6 @@ cpuinfo_cmd:
 		jne .last
 
 		mov ecx, 0xE7
-		rdmsr
 	
 	.last:
 		pop r10

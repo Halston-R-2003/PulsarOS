@@ -15,7 +15,7 @@ PulsarOS.img: pulsar-boot.bin kernel.bin
 	dd status=noxfer conv=notrunc if=PulsarOS.bin of=PulsarOS.img
 
 start: PulsarOS.img
-	qemu-system-x86_64 -fda PulsarOS.img
+	qemu-system-x86_64 -enable-kvm -cpu host -fda PulsarOS.img
 
 clean:
 	rm -f *.bin

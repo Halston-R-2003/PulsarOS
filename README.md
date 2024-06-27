@@ -52,3 +52,5 @@ Build 22 - Optimize Kernel and "clear" Command
 Build 23 - Code cleanup and reorganizaton + Implement "help" Command
 
 Build 24 - Add CPU Brand and Frequency features to "cpuinfo" Command
+
+Build 25 - Improve "cpuinfo" Command

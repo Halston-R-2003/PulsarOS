@@ -16,13 +16,17 @@ STRING cpuinfo_features, "Features: "
 STRING cpuinfo_cpu_brand, "CPU Brand: "
 STRING cpuinfo_max_frequency, "Max Frequency: "
 STRING cpuinfo_current_frequency, "Current Frequency: "
+STRING cpuinfo_l2, "L2 Cache Size: "
 STRING cpuinfo_mmx, "MMX "
 STRING cpuinfo_sse, "SSE "
 STRING cpuinfo_sse2, "SSE2 "
 STRING cpuinfo_sse3, "SSE3 "
 STRING cpuinfo_sse4_1, "SSE4_1 "
 STRING cpuinfo_sse4_2, "SSE4_2 "
+STRING cpuinfo_avx, "AVX "
 STRING cpuinfo_ht, "HT "
+STRING cpuinfo_fpu, "FPU "
+STRING cpuinfo_aes, "AES "
 
 STRING available_cmds, "Available Commands: "
 STRING tab, "  "
@@ -44,6 +48,19 @@ cmd_table:
 	dq help_cmd
 
 ;; Command Functions
+%macro TEST_FEAT 3
+	mov r15, %2
+	and r15, 1 << %3
+	cmp r15, 0
+	je .%1_end
+
+	mov r8, cpuinfo_%1
+	mov r9, cpuinfo_%1_len
+	call print_norm
+
+	.%1_end:
+%endmacro
+
 cpuinfo_cmd:
 	push rbp
 	mov rbp, rsp
@@ -109,9 +126,7 @@ cpuinfo_cmd:
 	mov r8, r15
 	and r8, 0xF
 
-	call set_current_pos
-	mov dl, STYLE(BG_BLACK, FG_WHITE)
-	call puts
+	call putint_norm
 
 	call goto_next_line
 	mov r8, cpuinfo_model
@@ -139,11 +154,8 @@ cpuinfo_cmd:
 	shr r11, 16
 
 	mov r8, r14
-	mov r8, r12
-
-	call set_current_pos
-	mov dl, STYLE(BG_BLACK, FG_WHITE)
-	call putint
+	add r8, r12
+	call putint_norm
 
 	call goto_next_line
 	mov r8, cpuinfo_family
@@ -152,10 +164,9 @@ cpuinfo_cmd:
 
 	mov r8, r13
 	add r8, r11
-	call set_current_pos
-	mov dl, STYLE(BG_BLACK, FG_WHITE)
-	call putint
+	call putint_norm
 
+	;; CPU Features
 	call goto_next_line
 	mov r8, cpuinfo_features
 	mov r9, cpuinfo_features_len
@@ -163,139 +174,99 @@ cpuinfo_cmd:
 
 	mov eax, 1
 	cpuid
-
-	.mmx:
-		mov r15, rdx
-		and r15, 1<<23
-		cmp r15, 0
-		je .sse
-
-		mov r8, cpuinfo_mmx
-		mov r9, cpuinfo_mmx_len
-		call print_norm
 	
-	.sse:
-		mov r15, rdx
-		and r15, 1<<25
-		cmp r15, 0
-		je .sse2
-
-		mov r8, cpuinfo_sse
-		mov r9, cpuinfo_sse_len
-		call print_norm
+	TEST_FEAT ht, rdx, 28
+	TEST_FEAT fpu, rdx, 0
+	TEST_FEAT mmx, rdx, 23
+	TEST_FEAT sse, rdx, 25
+	TEST_FEAT sse2, rdx, 26
+	TEST_FEAT sse3, rcx, 9
+	TEST_FEAT sse4_1, rcx, 19
+	TEST_FEAT sse4_2, rcx, 20
+	TEST_FEAT avx, rcx, 28
+	TEST_FEAT aes, rcx, 25
 	
-	.sse2:
-		mov r15, rdx
-		and r15, 1<<26
-		cmp r15, 0
-		je .ht
+	;; CPU Frequency
+	call goto_next_line
 
-		mov r8, cpuinfo_sse2
-		mov r9, cpuinfo_sse2_len
-		call print_norm
+	mov r8, cpuinfo_max_frequency
+	mov r9, cpuinfo_max_frequency_len
+	call print_norm
+
+	mov eax, 0x80000004
+	cpuid
+
+	mov [rsp+0], eax
+	mov [rsp+4], ebx
+	mov [rsp+8], ecx
+	mov [rsp+12], edx
+
+	mov rax, rsp
+
+	.next_char:
+		mov bl, [rax]
+		inc rax
+		cmp bl, 0
+		jne .next_char
+
+	xor rbx, rbx
+	xor rcx, rcx
+	mov cl, [rax-5]
+	sub rcx, 48
+	imul rcx, 10
+	add rbx, rcx
+
+	mov cl, [rax-6]
+	sub rcx, 48
+	imul rcx, 100
+	add rbx, rcx
+
+	movzx rcx, byte [rax-8]
+	sub rcx, 48
+	imul rcx, 1000
+	add rbx, rcx
+
+	mov r8, rbx
+	call putint_norm
+
+	mov eax, 0x06
+	cpuid
+	and ecx, 0b1
+	cmp ecx, 0
+	je .last
+
+	call goto_next_line
+
+	mov r8, cpuinfo_current_frequency
+	mov r9, cpuinfo_current_frequency_len
+	call print_norm
+
+	;; Read MPERF
+	mov rcx, 0xE7
+	rdmsr
+
+	;; Read APERF
+	mov rcx, 0xE8
+	rdmsr
 	
-	.ht:
-		mov r15, rdx
-		and r15, 1<<28
-		cmp r15, 0
-		je .sse3
-
-		mov r8, cpuinfo_ht
-		mov r9, cpuinfo_ht_len
-		call print_norm
-	
-	.sse3:
-		mov r15, rcx
-		and r15, 1<<9
-		cmp r15, 0
-		je .sse4_1
-
-		mov r8, cpuinfo_sse3
-		mov r9, cpuinfo_sse3_len
-		call print_norm
-	
-	.sse4_1:
-		mov r15, rcx
-		and r15, 1<<19
-		cmp r15, 0
-		je .sse4_2
-
-		mov r8, cpuinfo_sse4_1
-		mov r9, cpuinfo_sse4_1_len
-		call print_norm
-
-	.sse4_2:
-		mov r15, rcx
-		and r15, 1<<20
-		cmp r15, 0
-		je .freq
-
-		mov r8, cpuinfo_sse4_2
-		mov r9, cpuinfo_sse4_2_len
-		call print_norm
-	
-	.freq:
+	;; CPU L2 Cache Length
+	.last:
 		call goto_next_line
 
-		mov r8, cpuinfo_max_frequency
-		mov r9, cpuinfo_max_frequency_len
+		mov r8, cpuinfo_l2
+		mov r9, cpuinfo_l2_len
 		call print_norm
 
-		mov eax, 0x80000004
+		xor rcx, rcx
+		mov eax, 0x80000006
 		cpuid
 
-		mov [rsp+0], eax
-		mov [rsp+4], ebx
-		mov [rsp+8], ecx
-		mov [rsp+12], edx
+		and ecx, 0xFFFF0000
+		shr ecx, 16
 
-		mov rax, rsp
+		mov r8, rcx
+		call putint_norm
 
-		.next_char:
-			mov bl, [rax]
-			inc rax
-			cmp bl, 0
-			jne .next_char
-
-		xor rbx, rbx
-		xor rcx, rcx
-
-		mov cl, [rax-5]
-		sub rcx, 48
-		imul rcx, 10
-		add rbx, rcx
-
-		mov cl, [rax-6]
-		sub rcx, 48
-		imul rcx, 100
-		add rbx, rcx
-
-		movzx rcx, byte [rax-8]
-		sub rcx, 48
-		imul rcx, 1000
-		add rbx, rcx
-
-		call set_current_pos
-		mov r8, rbx
-		mov dl, STYLE(BG_BLACK, FG_WHITE)
-		call putint
-
-		call goto_next_line
-
-		mov r8, cpuinfo_current_frequency
-		mov r9, cpuinfo_current_frequency_len
-		call print_norm
-
-		xor rax, rax
-		mov ax, cs
-		and ax, 0b11
-
-		cmp ax, 0
-		jne .last
-
-		mov ecx, 0xE7
-	
-	.last:
 		pop r10
 		pop rdx
 		pop rcx

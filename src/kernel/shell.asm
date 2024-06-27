@@ -119,7 +119,7 @@ current_input_str:
 	times 32 db 0
 
 os_title_head:
-	db "                              PulsarOS v0.0.0.0024                              ",0
+	db "                              PulsarOS v0.0.0.0025                              ",0
 
 STRING cmd_line, "> "
 STRING cmd_not_found_str, "Command not found!"

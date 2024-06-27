@@ -59,7 +59,6 @@ goto_next_line:
 	ret
 
 print_norm:
-	push rax
 	push rbx
 	push rdx
 	push rdi
@@ -69,14 +68,13 @@ print_norm:
 	mov dl, STYLE(BG_BLACK, FG_WHITE)
 	call puts
 
-	mov rax, [current_col]
-	add rax, r9
-	mov [current_col], rax
+	mov rbx, [current_col]
+	add rbx, r9
+	mov [current_col], rbx
 
 	pop rdi
 	pop rdx
 	pop rbx
-	pop rax
 
 	ret
 
@@ -143,6 +141,19 @@ putint:
 		pop rax
 
 		ret
+
+putint_norm:
+	push rdi
+	push rdx
+
+	call set_current_pos
+	mov dl, STYLE(BG_BLACK, FG_WHITE)
+	call putint
+
+	pop rdi
+	pop rdx
+
+	ret
 
 ;; Data
 current_row:
